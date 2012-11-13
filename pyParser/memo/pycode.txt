@@ -1,0 +1,125 @@
+
+/* Bytecode object */
+typedef struct {
+    PyObject_HEAD
+    int co_argcount;		/* #arguments, except *args */
+    int co_nlocals;		/* #local variables */
+    int co_stacksize;		/* #entries needed for evaluation stack */
+    int co_flags;		/* CO_..., see below */
+    PyObject *co_code;		/* instruction opcodes */
+    PyObject *co_consts;	/* list (constants used) */
+    PyObject *co_names;		/* list of strings (names used) */
+    PyObject *co_varnames;	/* tuple of strings (local variable names) */
+    PyObject *co_freevars;	/* tuple of strings (free variable names) */
+    PyObject *co_cellvars;      /* tuple of strings (cell variable names) */
+    /* The rest doesn't count for hash/cmp */
+    PyObject *co_filename;	/* string (where it was loaded from) */
+    PyObject *co_name;		/* string (name, for reference) */
+    int co_firstlineno;		/* first source line number */
+    PyObject *co_lnotab;	/* string (encoding addr<->lineno mapping) See
+				   Objects/lnotab_notes.txt for details. */
+    void *co_zombieframe;     /* for optimization only (see frameobject.c) */
+    PyObject *co_weakreflist;   /* to support weakrefs to code objects */
+} PyCodeObject;
+
+当用import something 时，会在搜索路径中查找something.pyc文件，所以能产生something.pyc文件。
+marsha1.c
+写入一个字串， 在pycode中所有的字符串都是INTERNED
+    else if (PyString_CheckExact(v)) {
+        if (p->strings && PyString_CHECK_INTERNED(v)) {
+            PyObject *o = PyDict_GetItem(p->strings, v);
+            if (o) {    /* string interned already, just write it's type and index
+                long w = PyInt_AsLong(o);
+                w_byte(TYPE_STRINGREF, p);    
+                w_long(w, p);
+                goto exit;
+            }
+            else {
+                int ok;
+                o = PyInt_FromSsize_t(PyDict_Size(p->strings));  /* write type */
+                ok = o &&
+                     PyDict_SetItem(p->strings, v, o) >= 0;		/* write a string(length, content)*/
+                Py_XDECREF(o);
+                if (!ok) {
+                    p->depth--;
+                    p->error = WFERR_UNMARSHALLABLE;
+                    return;
+                }
+                w_byte(TYPE_INTERNED, p);
+            }
+        }
+        else {
+            w_byte(TYPE_STRING, p);
+        }
+        n = PyString_GET_SIZE(v);
+        if (n > INT_MAX) {
+            /* huge strings are not supported */
+            p->depth--;
+            p->error = WFERR_UNMARSHALLABLE;
+            return;
+        }
+        w_long((long)n, p);
+        w_string(PyString_AS_STRING(v), (int)n, p);
+    }
+    
+    
+ code object:
+     else if (PyCode_Check(v)) {
+        PyCodeObject *co = (PyCodeObject *)v;
+        w_byte(TYPE_CODE, p);
+        w_long(co->co_argcount, p);
+        w_long(co->co_nlocals, p);
+        w_long(co->co_stacksize, p);
+        w_long(co->co_flags, p);
+        w_object(co->co_code, p);				/*str */
+        w_object(co->co_consts, p);				/*tuple */
+        w_object(co->co_names, p);				/*tuple */
+        w_object(co->co_varnames, p);			/*tuple */
+        w_object(co->co_freevars, p);			/*tuple */
+        w_object(co->co_cellvars, p);			/*tuple */
+        w_object(co->co_filename, p);			/*str*/
+        w_object(co->co_name, p);				/*str */
+        w_long(co->co_firstlineno, p);			/* int */
+        w_object(co->co_lnotab, p);				/* str */
+    }
+    
+    
+co_argcount <type 'int'>
+co_cellvars <type 'tuple'>
+co_code <type 'str'>
+co_consts <type 'tuple'>
+co_filename <type 'str'>
+co_firstlineno <type 'int'>
+co_flags <type 'int'>
+co_freevars <type 'tuple'>
+co_lnotab <type 'str'>
+co_name <type 'str'>
+co_names <type 'tuple'>
+co_nlocals <type 'int'>
+co_stacksize <type 'int'>
+co_varnames <type 'tuple'>
+
+#define TYPE_NULL               '0'
+#define TYPE_NONE               'N'
+#define TYPE_FALSE              'F'
+#define TYPE_TRUE               'T'
+#define TYPE_STOPITER           'S'
+#define TYPE_ELLIPSIS           '.'
+#define TYPE_INT                'i'
+#define TYPE_INT64              'I'
+#define TYPE_FLOAT              'f'
+#define TYPE_BINARY_FLOAT       'g'
+#define TYPE_COMPLEX            'x'
+#define TYPE_BINARY_COMPLEX     'y'
+#define TYPE_LONG               'l'
+#define TYPE_STRING             's'
+#define TYPE_INTERNED           't'
+#define TYPE_STRINGREF          'R'
+#define TYPE_TUPLE              '('
+#define TYPE_LIST               '['
+#define TYPE_DICT               '{'
+#define TYPE_CODE               'c'
+#define TYPE_UNICODE            'u'
+#define TYPE_UNKNOWN            '?'
+#define TYPE_SET                '<'
+#define TYPE_FROZENSET          '>'
