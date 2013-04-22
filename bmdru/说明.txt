@@ -6,7 +6,9 @@
 [done]
 # filename为影片名，pickcode提取码， form为  sha1#size#name, user为文件所属于的115用户名
 filename = pickcode|form|user
-
+[upload_done]
+# 上传到VIP，但还没有收藏的部分
+filename = form
 [dir]
 filename = imdbname|url|size
         size = '2198948609'

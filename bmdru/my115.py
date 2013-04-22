@@ -221,8 +221,9 @@ class My115(object):
         info = self.send_req(url)
         #{"state":true,"offset":0,"data":[{"tkid":"32183","st":"1","pc":"","n":"\"Hitchcock.2012.BDRip.X264-BMDruCHinYaN.mkv\";","aid":"1","cid":"0","ctid":"1","s":"2198948609","t":"1362884404","fd":"0","ico":"mkv\";","pr":"0.0%"}],"count":"1","page_size":25}
         return info
+    
     def del_task(self, taskids):
-        ''' 删除任务过程 taskids为任务列表'''
+        ''' 删除任务过程 taskids为任务列表     {u'state': True, u'data': {u'43727': 1}} '''
         url = 'http://115.com/?ct=offline&ac=del_task'
         data = urllib.urlencode(dict([('tkid[%d]', taskids[i]) for i in range(len(taskids))]))
         info = self.send_req(url, data)
@@ -243,9 +244,19 @@ class My115(object):
             if name in item['n']: # find one
                 taskids.append(item['tkid'])
         return taskids
+    
     def get_process(self, taskid):
         url = 'http://115.com/?ct=offline&ac=process&tkid=%s'%taskid
         res = self.send_req(url)
+        return res
+    
+    def del_file(self, name):
+        taskids = self.search_task(name)
+        if taskids:
+            ret =self.del_task(taskids)
+            return ret['state']
+        else:
+            '%s not found'%name
         
 
                                                                                                                                                             
@@ -276,6 +287,7 @@ def main():
     user.get_storage_info()
     print user.get_recent_lixian(ext='.uue')
 if __name__ == '__main__':
-    user = My115(*('4732782', '19740905'))
-    print user.get_remain_space()
+    user = get_115()
+    name = 'tt0060450.z'
+    user.del_file(name)
         

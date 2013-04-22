@@ -1,34 +1,25 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*
 
-'''
-Created on 2013-3-6
-
-@author: Administrator
-'''
 import os
 import re
 import ftplib, ftputil
 import ConfigParser
 import my115
 
-
-
 FTP_URL = '120.192.81.203'
 FTP_PORT = 6066
 FTP_USER = 'admin'
 FTP_PASS = 'bmdru2012'
 FTP_BASE = 'ftp://%s:%s@%s:%d'%(FTP_USER, FTP_PASS, FTP_URL,FTP_PORT)
-
 LOCAL_BASE = 'http://222.175.240.166:42176'
 LAN_BASE = r'z:' 
-
 CONFIG_115 = '115.conf'
 ACCOUNT_115 = 'account.txt'
+SHARE_FILE = 'share.txt'
+
 def get_ftp():
-    '''
-        返回一个可用的 ftp 对象
-    '''
+    ''' 返回一个可用的 ftp 对象'''
     class MySession(ftplib.FTP):
         def __init__(self,host, port ,user, password):
             ftplib.FTP.__init__(self)
@@ -108,12 +99,18 @@ def get_115upload_info(path, host=''):
     if not host:
         host = os
         url_base=  LOCAL_BASE
-        lpath = os.path.join(LAN_BASE, path)
+        if os.path.exists(path):
+            lpath = path
+            path = path.replace(LAN_BASE, '')
+        else:
+            lpath = os.path.join(LAN_BASE, path)
     else:
         url_base = FTP_BASE
         lpath = path
     def_ext = '.mkv'
     mkvs = filter(lambda f: f.endswith(def_ext), host.listdir(lpath))
+    if not mkvs:
+        return None
     mkvs.sort()
 
     imdb = get_imdb(lpath, host)
@@ -127,7 +124,7 @@ def get_115upload_info(path, host=''):
     if len(res) == 1: # just one moive, correct name
         res[0] = ('%s.z'%imdb, url, size)
     return res
-    
+
 class Config115():
     def __init__(self, f=CONFIG_115):
         self.f = f
@@ -138,7 +135,44 @@ class Config115():
     def __exit__(self, exc_type, exc_val, exc_tb):
         with open(self.f, 'wb') as fp:
             self.conf.write(fp)
-
+            
+def walk_upload_info(path=''):
+    ''' 遍历目录树， 将相应的结果写入文件供后续使用  '''
+    if not path:
+        path = LAN_BASE
+    res = {}
+    for root, dirs, files in os.walk(path):
+        for folder in dirs:
+            if folder.endswith('BMDruCHinYaN'):
+                info = get_115upload_info(os.path.join(root, folder))
+                if info:
+                    res[folder] = info
+    if res:
+        with Config115() as conf:
+            for folder in res:
+                if conf.has_section(folder):
+                    print '%s done already'%folder
+                else:
+                    conf.add_section(folder)
+                    for item in res[folder]:
+                        if item:
+                            fname = os.path.split(item[1])[1]
+                            conf.set(folder, fname, '|'.join(item))
+    return len(res)
+                            
+def default_upload115():
+    ''' 批量上传文件到115vip中 '''
+    ret = {}
+    with Config115() as conf:
+        user = my115.get_115()
+        for section in conf.sections():
+            if section in ('done', 'upload_done'): continue
+            for item in conf.items(section):
+                name, url, size = item[1].split('|')
+                res =user.upload_file(name, url, size)
+                ret[name] = res
+    return res
+    
 def upload_115vip(path, host=''):
     with Config115() as conf:
         if  conf.has_section(path):  # 上传过，不再重复
@@ -158,7 +192,7 @@ def upload_115vip(path, host=''):
     return len(ret)
     
 def get_task_form():
-    ''' 对完成的任务， 获取其标准式
+    ''' 对完成的任务， 获取其标准式, 同时设置upload_done节
             返回格式为 {'section':{'name':'form'}}
     '''
     ret = {}
@@ -166,7 +200,7 @@ def get_task_form():
         user = my115.get_115()
         tasks = user.get_task_info()
         for section in conf.sections():
-            if section == 'done':continue
+            if section in ('done', 'upload_done'):continue
             ret[section] = {}
             for item in conf.items(section):
                 name = item[1].split('|')[0]
@@ -182,8 +216,15 @@ def get_task_form():
                     if not pickcode: continue
                     sha1 = user.getsha1(pickcode)
                     form = '#'.join([sha1, task['s'], task['n']])
+                    
                     ret[section][item[0]] = form
+        for section in ret:
+            for fname in ret[section]:
+                conf.set("upload_done", fname, ret[section][fname])
+                conf.remove_option(section, fname)
+            conf.remove_section(section)
     return ret
+
 class LoadAccount(object):
     def __init__(self):
         self.fp = open(ACCOUNT_115, 'r+')
@@ -201,40 +242,76 @@ def batch_collect(forms):
     '''
     with LoadAccount() as accounts:   
         done = []
+        info = accounts[0].split()
+        user = my115.get_115(info[0], info[1])
         for form in forms:
-            info = accounts[0].split()
-            print info[0], info[1]
-            user = my115.get_115(info[0], info[1])
             size = int(form.split('#')[1])
             while user.get_remain_space() < size:
                 accounts.pop(0)
                 info = accounts[0].split()
                 user = my115.get_115(info[0], info[1])
-            user.collect(form)
             pc = user.collect(form)
-            done.append((pc, form, info[0]))
+            if not pc:
+                print '%s fail '%form
+            else:
+                done.append((pc, form, info[0]))
     return  done
              
 def update_done():
-    res = get_task_form()
-    print res
+    ''' 上传完成同时获取标准式后， 收藏标准式，同时生成必贴文件及清除上传的文件 '''
     with Config115() as conf:
-        for sec in res:
-            done = batch_collect(res[sec].values()) # 收藏完成的任务, 要保证收藏不会失败
-            for item in done:
-                for name in res[sec]:
-                    if res[sec][name] == item[1]:
-                        break
-                else:  # 这应该不会发生的，  item中的标准 式的文件 ，都在res[sec]中
-                    continue
-                conf.remove_option(sec, name) # 清除完成的任务
-                conf.set('done', name, '|'.join(item))
-            if not conf.items(sec): # 此节没有项目了，删除此节
-                conf.remove_section(sec)
-                
+        items = [item for item in conf.items('upload_done')]
+        done = batch_collect([item[1] for item in items])
+        fshare = open(SHARE_FILE, 'ab')
+        clean_up = []
+        for info in done:
+            for item in items:
+                if item[1] == info[1]:
+                    break
+            else:
+                continue
+            conf.set('done', item[0], '|'.join(info))
+            conf.remove_option('upload_done', item[0])
+            clean_up.append(item[1].split('#')[2])
+            fshare.write('\n'.join([item[0], '[code]', item[1], '[/code]']))
+    vip = my115.get_115()
+    for item in clean_up:
+        vip.del_file(item)
+    return done
+
+def clean_up():
+    ''' 一般情况下应该不用 '''
+    with Config115() as conf:
+        user = my115.get_115()
+        for item in conf.items('done'):
+            name = item[1].split('|')[1].split('#')[2]
+            ret =user.del_file(name)
+            if not ret:
+                print '%s fail to delete'%name
+
+
+###  一般情况下，直接使用下面两个函数就 行
+def auto_upload_115(debug=0):
     
+    ret = walk_upload_info() # 生成文件信息
+    if debug:
+        print ret 
+    ret = default_upload115() #进行上传
+    if debug:
+        print 'default_upload115 resutl:'
+        print ret
+        
+def auto_collect(debug=0):
+    ''' 此时文件上传完成 '''
+    ret = get_task_form()
+    if debug:
+        print ret 
+    ret = update_done()
+    if debug:
+        print ret     
+               
 if __name__ == '__main__':
-    update_done()
+    clean_up()
 
     pass
     

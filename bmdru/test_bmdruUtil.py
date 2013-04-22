@@ -12,6 +12,7 @@ import unittest
 from bmdruUtil import *
 
 class testBmdru(unittest.TestCase):
+    
     @unittest.skip("unittest passed already")
     def test_get_ftp_imdb(self):
 
@@ -21,6 +22,7 @@ class testBmdru(unittest.TestCase):
 
         res = get_ftp_imdb(path, ftp)
         self.assertEqual(res[1], imdb)
+        
     @unittest.skip("unittest passed already")
     def test_upload_ftp_115(self):
         ftp = get_ftp()
@@ -39,6 +41,7 @@ class testBmdru(unittest.TestCase):
         fpath = os.path.join(LAN_BASE, path)
         imdb = get_imdb(fpath)
         self.assertEqual(imdb, 'tt0975645')
+        
     @unittest.skip("unittest passed already")    
     def test_get_115upload_info(self):
         path = 'Hitchcock.2012.BDRip.X264-BMDruCHinYaN'
@@ -51,17 +54,27 @@ class testBmdru(unittest.TestCase):
     @unittest.skip("unittest passed already")    
     def test_upload_115vip(self):
         path = 'Hitchcock.2012.BDRip.X264-BMDruCHinYaN'
-        
         cnt = upload_115vip(path)
         self.assertEqual(cnt,1)
         
+    @unittest.skip("unittest passed already")    
     def test_batch_collect(self):
         forms = ['DA9B2954F538705E8B5E9C950385466C11531541#2198948609#tt0975645.z']
         res = batch_collect(forms)
         self.assertEqual(len(res), 1)
+        
+    @unittest.skip("folder with single mkv and recrusive folder with single mkv success") 
+    def test_walk_upload_info(self):
+        nr = walk_upload_info()
+        self.assertEqual(nr, 7)
+    @unittest.skip("unittest passed already") 
+    def test_get_task_form(self):
+        ret = get_task_form()
+        self.assertEqual(len(ret), 7)
 
-
-
+    def test_update_done(self):
+        ret = update_done()
+        self.assertEqual(len(ret), 7)
 if __name__ == '__main__':
 
     unittest.main()
