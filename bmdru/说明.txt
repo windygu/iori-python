@@ -1,0 +1,15 @@
+
+
+
+# 115.conf 文件格式
+
+[done]
+# filename为影片名，pickcode提取码， form为  sha1#size#name, user为文件所属于的115用户名
+filename = pickcode|form|user
+
+[dir]
+filename = imdbname|url|size
+        size = '2198948609'
+        name = 'tt0975645.z'
+        url = r'http://222.175.240.166:42176/Hitchcock.2012.BDRip.X264-BMDruCHinYaN/Hitchcock.2012.BDRip.X264-BMDruCHinYaN.mkv'
+Hitchcock.2012.BDRip.X264-BMDruCHinYaN.mkv = tt0975645.z|http://222.175.240.166:42176/Hitchcock.2012.BDRip.X264-BMDruCHinYaN/Hitchcock.2012.BDRip.X264-BMDruCHinYaN.mkv|2198948609   
